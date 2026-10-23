@@ -1,0 +1,5 @@
+rows 975, countries 195, years [2000, 2005, 2010, 2015, 2020]
+countries per region: {'Americas': 35, 'East Asia & Pacific': 30, 'Europe & Central Asia': 54, 'Middle East & North Africa': 20, 'South Asia': 8, 'Sub-Saharan Africa': 48}
+missing values: {'population': 4, 'income_per_capita': 10, 'life_expectancy': 5, 'child_mortality': 8, 'co2_per_capita': 15, 'people_in_poverty': 43, 'traffic_deaths': 10, 'internet_users': 48, 'cell_phones_total': 26}
+no child_mortality: ['Holy See', 'San Marino']
+no income: ['Holy See', 'Liechtenstein']
