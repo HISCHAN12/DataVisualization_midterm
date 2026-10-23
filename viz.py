@@ -12,8 +12,17 @@ region_color = alt.Color('region:N', title='Region', sort=REGIONS,
 CM = 'Child mortality (deaths under 5 per 1,000 births)'
 
 # ---------------- Part A: exploratory dashboard ----------------
-plot = gap.dropna(subset=['income_per_capita', 'child_mortality'])
+IND = {'child_mortality': CM,
+       'life_expectancy': 'Life expectancy (years)',
+       'fertility_rate': 'Fertility rate (births per woman)',
+       'dtp3': 'DTP3 vaccine coverage (% of 1-year-olds, WHO)',
+       'health_exp_gdp': 'Health spending (% of GDP, World Bank)'}
+# Long format: one row per country-year-indicator, so a dropdown can switch the y variable.
+long = gap.melt(id_vars=['country', 'region', 'income_group', 'year', 'population', 'income_per_capita'],
+                value_vars=list(IND), var_name='indicator', value_name='value').dropna(subset=['value'])
+long['indicator'] = long['indicator'].map(IND)
 
+ind = alt.param(name='ind', value=CM, bind=alt.binding_select(options=list(IND.values()), name='Indicator: '))
 year = alt.param(name='year_sel', value=2020,
                  bind=alt.binding_select(options=YEARS, name='Year: '))
 region_pick = alt.selection_point(name='region_pick', fields=['region'], clear='dblclick')
@@ -21,64 +30,62 @@ country_pick = alt.selection_point(
     name='country_pick', fields=['country'], empty=False, clear='dblclick',
     value=[{'country': c} for c in ['Nigeria', 'India', 'Brazil', 'South Korea']])
 
-eligible = alt.Chart(plot).transform_filter(alt.datum.year == year)
+base = alt.Chart(long).transform_filter(alt.datum.indicator == ind)
+eligible = base.transform_filter(alt.datum.year == year)
+value_tip = alt.Tooltip('value:Q', title='Value', format=',.1f')
 
-scatter = eligible.mark_circle(size=70, opacity=0.8).encode(
+
+scatter = eligible.transform_filter(alt.datum.income_per_capita > 0).mark_circle(size=70, opacity=0.8).encode(
     x=alt.X('income_per_capita:Q', scale=alt.Scale(type='log', domain=[0.5, 600]),
             title='Mean income per person ($/day, 2017 PPP, log scale)'),
-    y=alt.Y('child_mortality:Q', scale=alt.Scale(type='log', domain=[1.5, 250]),
-            title=CM + ', log scale'),
+    y=alt.Y('value:Q', title=None, scale=alt.Scale(zero=False)),
     color=alt.when(region_pick).then(region_color).otherwise(alt.value('#DDDDDD')),
     stroke=alt.when(country_pick).then(alt.value('black')).otherwise(alt.value(None)),
     strokeWidth=alt.when(country_pick).then(alt.value(2)).otherwise(alt.value(0)),
     order=alt.when(region_pick).then(alt.value(1)).otherwise(alt.value(0)),
     tooltip=[alt.Tooltip('country:N', title='Country'), alt.Tooltip('region:N', title='Region'),
-             alt.Tooltip('year:O', title='Year'),
+             alt.Tooltip('income_group:N', title='Income group (WB)'), alt.Tooltip('year:O', title='Year'),
+             value_tip,
              alt.Tooltip('income_per_capita:Q', title='Income ($/day, 2017 PPP)', format=',.1f'),
-             alt.Tooltip('child_mortality:Q', title='Child mortality (/1,000)', format='.1f'),
-             alt.Tooltip('life_expectancy:Q', title='Life expectancy (yrs)', format='.1f'),
              alt.Tooltip('population:Q', title='Population', format=',.0f')]
 ).add_params(country_pick).properties(
     width=430, height=330,
-    title=alt.Title('1. Income and child mortality by country',
+    title=alt.Title(alt.expr("'1. ' + ind + ' vs income, ' + year_sel"),
                     subtitle='Click a country to show its trend in chart 3 (shift-click to add).'))
 
 region_bars = eligible.mark_bar().encode(
     y=alt.Y('region:N', sort='-x', title=None),
-    x=alt.X('median(child_mortality):Q', title='Median child mortality (per 1,000)',
-            scale=alt.Scale(domain=[0, 150])),
+    x=alt.X('median(value):Q', title='Median across countries'),
     color=alt.when(region_pick).then(region_color).otherwise(alt.value('#DDDDDD')),
     tooltip=[alt.Tooltip('region:N', title='Region'),
-             alt.Tooltip('median(child_mortality):Q', title='Median (/1,000)', format='.1f'),
+             alt.Tooltip('median(value):Q', title='Median', format=',.1f'),
              alt.Tooltip('count():Q', title='Countries')]
 ).add_params(region_pick).properties(
     width=330, height=330,
     title=alt.Title('2. Median by region (country median)',
                     subtitle='Click a bar to highlight a region (shift-click to add).'))
 
-trend_base = alt.Chart(gap.dropna(subset=['child_mortality']))
-trend_lines = trend_base.transform_filter(country_pick).mark_line(point=True).encode(
+trend_lines = base.transform_filter(country_pick).mark_line(point=True).encode(
     x=alt.X('year:O', title='Observation year (5-year steps)', axis=alt.Axis(labelAngle=0)),
-    y=alt.Y('child_mortality:Q', title=CM, scale=alt.Scale(domain=[0, 230])),
+    y=alt.Y('value:Q', title=None, scale=alt.Scale(zero=False)),
     color=alt.Color('country:N', title='Selected country'),
-    tooltip=[alt.Tooltip('country:N', title='Country'), alt.Tooltip('year:O', title='Year'),
-             alt.Tooltip('child_mortality:Q', title='Child mortality (/1,000)', format='.1f')])
+    tooltip=[alt.Tooltip('country:N', title='Country'), alt.Tooltip('year:O', title='Year'), value_tip])
 # Full-data reference: does not react to any selection.
-world_median = trend_base.mark_line(color='#888888', strokeDash=[4, 4]).encode(
-    x='year:O', y='median(child_mortality):Q')
-world_label = trend_base.transform_filter(alt.datum.year == 2020).mark_text(
+world_median = base.mark_line(color='#888888', strokeDash=[4, 4]).encode(
+    x='year:O', y='median(value):Q')
+world_label = base.transform_filter(alt.datum.year == 2020).mark_text(
     align='left', dx=6, color='#666666').encode(
-    x='year:O', y='median(child_mortality):Q', text=alt.value('All-country median'))
+    x='year:O', y='median(value):Q', text=alt.value('All-country median'))
 trend = (world_median + world_label + trend_lines).properties(
     width=430, height=260,
-    title=alt.Title('3. Trend of selected countries, 2000–2020',
+    title=alt.Title(alt.expr("'3. ' + ind + ', selected countries, 2000–2020'"),
                     subtitle='Dashed: median of all countries. Lines between points are interpolated.'))
 
 status = eligible.transform_filter(region_pick).transform_aggregate(
-    n='count()', med='median(child_mortality)', regions='distinct(region)'
+    n='count()', med='median(value)', regions='distinct(region)'
 ).transform_calculate(
     line1="'Year ' + year_sel + ' · ' + (datum.regions == 6 ? 'all regions' : datum.regions + ' region(s) selected')",
-    line2="format(datum.n, ',.0f') + ' countries · median ' + format(datum.med, '.1f') + ' per 1,000'"
+    line2="format(datum.n, ',.0f') + ' countries with data · median ' + format(datum.med, ',.1f')"
 ).mark_text(fontSize=17, align='left').encode(x=alt.value(0), y=alt.value(40), text='line1:N')
 status2 = status.encode(y=alt.value(75), text='line2:N')
 status_box = (status + status2).properties(
@@ -90,12 +97,20 @@ status_box = (status + status2).properties(
 dashboard = alt.vconcat(
     scatter | region_bars,
     trend | status_box
-).add_params(year).resolve_scale(color='independent').properties(
-    title=alt.Title('Child mortality explorer: 195 countries, 2000–2020',
-                    subtitle=['Data: Gapminder (course file gapminder_2000_2020.csv). Choose a year below the charts.',
-                              'Questions: Which regions lag? Which countries do better than their income suggests? How fast did a country improve?'])
+).add_params(ind, year).resolve_scale(color='independent').properties(
+    title=alt.Title('Child health explorer: 195 countries, 2000–2020',
+                    subtitle=['Data: Gapminder (course file), World Bank WDI (health spending, income group), WHO GHO (DTP3).',
+                              'Use Indicator and Year above the charts. Questions: Which regions lag? '
+                              'Which countries do better than their income suggests? How fast did a country improve?'])
 ).configure_view(stroke=None)
-dashboard.save('site/dashboard.html')
+dashboard.save('site/dashboard.html', embed_options={'actions': False})
+# Altair puts widgets below the charts; this CSS moves them above (column-reverse) for first-look visibility.
+CONTROLS_ON_TOP = ('<style>body{background:#fff;color:#000}#vis.vega-embed{display:flex;flex-direction:column-reverse}'
+                   '.vega-bindings{display:flex;gap:24px;margin:0 0 12px;font:14px sans-serif}'
+                   '.vega-bind-name{font-weight:600}</style></head>')
+html = open('site/dashboard.html').read()
+assert html.count('</head>') == 1
+open('site/dashboard.html', 'w').write(html.replace('</head>', CONTROLS_ON_TOP))
 
 # ---------------- Part B: explanatory story ----------------
 cm = gap.dropna(subset=['child_mortality'])
