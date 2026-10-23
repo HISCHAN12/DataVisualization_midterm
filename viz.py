@@ -25,7 +25,7 @@ eligible = alt.Chart(plot).transform_filter(alt.datum.year == year)
 
 scatter = eligible.mark_circle(size=70, opacity=0.8).encode(
     x=alt.X('income_per_capita:Q', scale=alt.Scale(type='log', domain=[0.5, 600]),
-            title='Income per person (thousand $, PPP, log scale)'),
+            title='Mean income per person ($/day, 2017 PPP, log scale)'),
     y=alt.Y('child_mortality:Q', scale=alt.Scale(type='log', domain=[1.5, 250]),
             title=CM + ', log scale'),
     color=alt.when(region_pick).then(region_color).otherwise(alt.value('#DDDDDD')),
@@ -34,7 +34,7 @@ scatter = eligible.mark_circle(size=70, opacity=0.8).encode(
     order=alt.when(region_pick).then(alt.value(1)).otherwise(alt.value(0)),
     tooltip=[alt.Tooltip('country:N', title='Country'), alt.Tooltip('region:N', title='Region'),
              alt.Tooltip('year:O', title='Year'),
-             alt.Tooltip('income_per_capita:Q', title='Income (k$ PPP)', format=',.1f'),
+             alt.Tooltip('income_per_capita:Q', title='Income ($/day, 2017 PPP)', format=',.1f'),
              alt.Tooltip('child_mortality:Q', title='Child mortality (/1,000)', format='.1f'),
              alt.Tooltip('life_expectancy:Q', title='Life expectancy (yrs)', format='.1f'),
              alt.Tooltip('population:Q', title='Population', format=',.0f')]
