@@ -1,5 +1,7 @@
 # Data Visualization Midterm Report: Child Health Gaps Between Countries, 2000–2020
 
+**22000708 Heechan Jung**
+
 - **Part A (exploratory dashboard):** https://hischan12.github.io/DataVisualization_midterm/site/dashboard.html
 - **Part B (explanatory visualization):** https://hischan12.github.io/DataVisualization_midterm/site/story.html (a picture copy is `site/story.png`)
 - **Start page:** https://hischan12.github.io/DataVisualization_midterm/
@@ -138,3 +140,28 @@ I only say that these changes happened at the same time. I do not claim which on
 | Part A online | **Submitted:** https://hischan12.github.io/DataVisualization_midterm/site/dashboard.html |
 | Part B online | **Submitted:** https://hischan12.github.io/DataVisualization_midterm/site/story.html |
 | Data collection and integration | **Submitted:** 4 datasets from 3 organizations (Gapminder, World Bank, WHO), joined on country code and year and checked (Section 1). The joined data is used for the 5 indicators in Part A and the context in Part B. |
+
+---
+
+## 5. Use of AI Tools and Our Contributions
+
+**What the AI tool did:** We used Claude (Anthropic) to draft a work plan from the course
+materials, write the Python code (`prep.py`, `viz.py`), draft the report text, and run checks.
+
+**What we decided and checked ourselves:**
+1. **Scope:** We first limited the work to the class dataset and the methods taught in
+   Weeks 1–2, so every design choice could be explained with course concepts.
+2. **Comparing two versions:** We had two separate versions of the project and compared
+   them. From that comparison we chose what to keep: joining three sources with checks,
+   five indicators instead of one, and controls placed above the charts.
+3. **Finding an error:** The comparison showed that one version read income as
+   "thousand dollars per year". We checked real country values (Monaco 513, USA 96.5)
+   and confirmed the unit is dollars per day, then fixed the labels and the report.
+4. **Checking against the assessment criteria:** We checked the published site item by item
+   against Sections 6–7, tested every interaction online, and fixed what was weak:
+   y-axis units, instructions on the page, and country colors that clashed with region colors.
+5. **Readability:** We rewrote the report in simple English so that any reader can follow it.
+
+**How we checked for AI errors:** Every number in this report was recalculated from
+`data/clean.csv`. The Part B claims are checked by `assert` lines in `viz.py`, so the build
+stops if a claim is not true for the data. We avoided causal claims.
