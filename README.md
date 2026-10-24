@@ -3,7 +3,7 @@
 ## Open these first
 1. **Part A dashboard (interactive):** https://hischan12.github.io/DataVisualization_midterm/site/dashboard.html
 2. **Part B story (fixed view):** https://hischan12.github.io/DataVisualization_midterm/site/story.html
-3. **Report:** `report.md` (data, design reasons, limitations, bonus work)
+3. **Report:** submitted as a separate PDF (also `report.md` in the GitHub repository: https://github.com/HISCHAN12/DataVisualization_midterm)
 
 Start page with both links: https://hischan12.github.io/DataVisualization_midterm/
 

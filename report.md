@@ -119,6 +119,7 @@ The Week 1 notebook says the source of the class file should be checked before s
 
 ### Context (from the joined data)
 Two lines under the main title give context (region medians, 2000 → 2020):
+
 - **Vaccine gap (WHO DTP3):** The difference between Europe & Central Asia and Sub-Saharan Africa narrowed from 32 to 11 percentage points (96% vs 64% → 94% vs 83%).
 - **Income gap (Gapminder):** Europe's income lead grew from 6.6 times to 9.6 times.
 
@@ -149,6 +150,7 @@ I only say that these changes happened at the same time. I do not claim which on
 materials, write the Python code (`prep.py`, `viz.py`), draft the report text, and run checks.
 
 **What we decided and checked ourselves:**
+
 1. **Scope:** We first limited the work to the class dataset and the methods taught in
    Weeks 1–2, so every design choice could be explained with course concepts.
 2. **Comparing two versions:** We had two separate versions of the project and compared
