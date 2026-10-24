@@ -35,6 +35,13 @@ eligible = base.transform_filter(alt.datum.year == year)
 value_tip = alt.Tooltip('value:Q', title='Value', format=',.1f')
 
 
+def y_title(height):
+    # Axis titles cannot read a parameter, so the indicator name (with its unit) is drawn as rotated text.
+    return alt.Chart(pd.DataFrame({'a': [0]})).mark_text(
+        text=alt.expr('ind'), angle=270, fontWeight='bold', fontSize=11, baseline='bottom'
+    ).encode(x=alt.value(-32), y=alt.value(height / 2))
+
+
 scatter = eligible.transform_filter(alt.datum.income_per_capita > 0).mark_circle(size=70, opacity=0.8).encode(
     x=alt.X('income_per_capita:Q', scale=alt.Scale(type='log', domain=[0.5, 600]),
             title='Mean income per person ($/day, 2017 PPP, log scale)'),
@@ -48,7 +55,8 @@ scatter = eligible.transform_filter(alt.datum.income_per_capita > 0).mark_circle
              value_tip,
              alt.Tooltip('income_per_capita:Q', title='Income ($/day, 2017 PPP)', format=',.1f'),
              alt.Tooltip('population:Q', title='Population', format=',.0f')]
-).add_params(country_pick).properties(
+).add_params(country_pick)
+scatter = (scatter + y_title(330)).properties(
     width=430, height=330,
     title=alt.Title(alt.expr("'1. ' + ind + ' vs income, ' + year_sel"),
                     subtitle='Click a country to show its trend in chart 3 (shift-click to add).'))
@@ -68,15 +76,16 @@ region_bars = eligible.mark_bar().encode(
 trend_lines = base.transform_filter(country_pick).mark_line(point=True).encode(
     x=alt.X('year:O', title='Observation year (5-year steps)', axis=alt.Axis(labelAngle=0)),
     y=alt.Y('value:Q', title=None, scale=alt.Scale(zero=False)),
-    color=alt.Color('country:N', title='Selected country'),
+    color=alt.value('#222222'),
+    detail='country:N',
     tooltip=[alt.Tooltip('country:N', title='Country'), alt.Tooltip('year:O', title='Year'), value_tip])
-# Full-data reference: does not react to any selection.
+# Direct labels instead of a color legend, so country colors never clash with region colors.
+trend_names = base.transform_filter(country_pick).transform_filter(alt.datum.year == 2020).mark_text(
+    align='left', dx=6, fontWeight='bold', color='#222222').encode(x='year:O', y='value:Q', text='country:N')
+# Full-data reference: does not react to any selection (explained in the subtitle, not labelled, to avoid clashing with country labels).
 world_median = base.mark_line(color='#888888', strokeDash=[4, 4]).encode(
     x='year:O', y='median(value):Q')
-world_label = base.transform_filter(alt.datum.year == 2020).mark_text(
-    align='left', dx=6, color='#666666').encode(
-    x='year:O', y='median(value):Q', text=alt.value('All-country median'))
-trend = (world_median + world_label + trend_lines).properties(
+trend = (world_median + trend_lines + trend_names + y_title(260)).properties(
     width=430, height=260,
     title=alt.Title(alt.expr("'3. ' + ind + ', selected countries, 2000–2020'"),
                     subtitle='Dashed: median of all countries. Lines between points are interpolated.'))
@@ -98,19 +107,40 @@ dashboard = alt.vconcat(
     scatter | region_bars,
     trend | status_box
 ).add_params(ind, year).resolve_scale(color='independent').properties(
+    padding={'left': 30, 'top': 5, 'right': 5, 'bottom': 5},  # room for the rotated y titles drawn outside the axes
     title=alt.Title('Child health explorer: 195 countries, 2000–2020',
-                    subtitle=['Data: Gapminder (course file), World Bank WDI (health spending, income group), WHO GHO (DTP3).',
-                              'Use Indicator and Year above the charts. Questions: Which regions lag? '
-                              'Which countries do better than their income suggests? How fast did a country improve?'])
+                    subtitle='Data: Gapminder (course file), World Bank WDI (health spending, income group), WHO GHO (DTP3).')
 ).configure_view(stroke=None)
 dashboard.save('site/dashboard.html', embed_options={'actions': False})
 # Altair puts widgets below the charts; this CSS moves them above (column-reverse) for first-look visibility.
 CONTROLS_ON_TOP = ('<style>body{background:#fff;color:#000}#vis.vega-embed{display:flex;flex-direction:column-reverse}'
                    '.vega-bindings{display:flex;gap:24px;margin:0 0 12px;font:14px sans-serif}'
-                   '.vega-bind-name{font-weight:600}</style></head>')
+                   '.vega-bind-name{font-weight:600}'
+                   '.intro{font:14px/1.5 sans-serif;max-width:1000px;margin:0 0 16px}.intro h1{font-size:20px;margin:0 0 4px}'
+                   '.intro ul{margin:4px 0;padding-left:20px}</style></head>')
+INTRO = '''<div class="intro">
+<h1>Child health explorer, 2000–2020</h1>
+<p><b>For</b> students and practitioners in global health and development. <b>Scope:</b> 195 countries, 6 regions,
+five observation years (2000–2020), five indicators from Gapminder, WHO and the World Bank.</p>
+<b>How to use</b>
+<ul>
+<li><b>Indicator</b> and <b>Year</b> (just below) change every chart at once.</li>
+<li><b>Click a region bar</b> (chart 2) to highlight its countries in chart 1; shift-click to add regions.</li>
+<li><b>Click a country</b> (chart 1) to add its trend to chart 3; shift-click to add more. Hover for exact values.</li>
+<li><b>Double-click</b> chart 1 or 2 to clear its selection. "Current selection" shows what is active.</li>
+</ul>
+<b>Questions to try</b>
+<ul>
+<li>Child mortality: which region's bar shrinks most between 2000 and 2020?</li>
+<li>Which countries have lower child mortality than others at the same income? Is their DTP3 coverage also higher?</li>
+<li>At similar income, how different are fertility rates or health spending shares across regions?</li>
+</ul>
+</div>
+<div id="vis">'''
 html = open('site/dashboard.html').read()
-assert html.count('</head>') == 1
-open('site/dashboard.html', 'w').write(html.replace('</head>', CONTROLS_ON_TOP))
+assert html.count('</head>') == 1 and html.count('<div id="vis">') == 1
+html = html.replace('</head>', CONTROLS_ON_TOP).replace('<div id="vis">', INTRO)
+open('site/dashboard.html', 'w').write(html)
 
 # ---------------- Part B: explanatory story ----------------
 cm = gap.dropna(subset=['child_mortality'])
@@ -131,6 +161,16 @@ assert gaps.abs_gap.iloc[-1] < gaps.abs_gap.iloc[0] / 2
 assert gaps.ratio_median.iloc[-1] > 0.95 * gaps.ratio_median.iloc[0]
 assert gaps.ratio_pop.iloc[-1] > gaps.ratio_pop.iloc[0]
 print(gaps.round(2).to_string(index=False))
+
+# Context from the joined WHO / World Bank data (same countries, same medians), shown in the story subtitle.
+ctx = gap[gap.year.isin([2000, 2020]) & gap.region.isin([SSA, EUR])].groupby(['region', 'year'])[
+    ['dtp3', 'income_per_capita', 'health_exp_gdp']].median()
+dtp_gap = [ctx.loc[(EUR, y), 'dtp3'] - ctx.loc[(SSA, y), 'dtp3'] for y in (2000, 2020)]
+inc_ratio = [ctx.loc[(EUR, y), 'income_per_capita'] / ctx.loc[(SSA, y), 'income_per_capita'] for y in (2000, 2020)]
+CONTEXT = [f'Context (medians, same regions): the WHO DTP3 vaccine-coverage gap narrowed from {dtp_gap[0]:.0f} to {dtp_gap[1]:.0f} '
+           f'percentage points, while Europe’s Gapminder income lead widened from {inc_ratio[0]:.1f}× to {inc_ratio[1]:.1f}×.',
+           'These changes happened at the same time; the charts do not show which of them, if any, drives the gap.']
+print(*CONTEXT)
 
 ACCENT = {SSA: '#C7523B', EUR: '#187D91'}
 # Americas and MENA end within 0.3 of each other in 2020, so they share one label.
@@ -191,8 +231,9 @@ chart3 = (parity + parity_text + ratio_lines + ratio_text + ratio_names).propert
 story = alt.vconcat(chart1, alt.hconcat(chart2, chart3, spacing=110), spacing=40).properties(
     title=alt.Title(
         'Child mortality fell fast in Sub-Saharan Africa, yet it is still 11–14 times Europe’s',
-        subtitle=['Data: Gapminder, course file gapminder_2000_2020.csv; five observation years; 193 countries with child mortality data.',
-                  'Descriptive comparison of regional summaries. It does not show causes, and country-level variation within regions is large.'],
+        subtitle=['Data: Gapminder course file (child mortality, income), WHO GHO (DTP3); five observation years; 193 countries with child mortality data.',
+                  'Descriptive comparison of regional summaries. It does not show causes, and country-level variation within regions is large.',
+                  *CONTEXT],
         fontSize=18, anchor='start', offset=16)
 ).configure_view(stroke=None).configure_axis(grid=False, labelFontSize=12, titleFontSize=12)
 story.save('site/story.html')
