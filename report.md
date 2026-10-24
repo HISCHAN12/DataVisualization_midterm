@@ -1,139 +1,140 @@
-# 데이터시각화 중간과제 보고서: 국가 간 아동사망률 격차, 2000–2020
+# Data Visualization Midterm Report: Child Health Gaps Between Countries, 2000–2020
 
-- Part A (탐색형): `site/dashboard.html`
-- Part B (설명형): `site/story.html` (정적 사본 `site/story.png`)
-- 도구: Python · pandas · Altair 6 (수업 Week 1–2에서 다룬 방법 위주)
-- 온라인 URL: *(GitHub Pages 게시 후 추가 예정)*
+- **Part A (exploratory dashboard):** https://hischan12.github.io/DataVisualization_midterm/site/dashboard.html
+- **Part B (explanatory visualization):** https://hischan12.github.io/DataVisualization_midterm/site/story.html (a picture copy is `site/story.png`)
+- **Start page:** https://hischan12.github.io/DataVisualization_midterm/
+- **Code and data:** https://github.com/HISCHAN12/DataVisualization_midterm
+- **Tools:** Python, pandas, Altair 6 (mostly the methods from the Week 1–2 Altair lessons)
 
 ---
 
-## 1. 데이터
+## 1. Data
 
-### 출처 (접근일: 2026-10-23, 원본 응답은 `data/raw/`에 저장)
+### Sources (accessed 2026-10-23; the original downloads are saved in `data/raw/`)
 
-| 출처 | 지표 (코드) | 단위 | URL |
+| Source | What I used (code) | Unit | URL |
 |---|---|---|---|
-| Gapminder (수업 제공 `gapminder_2000_2020.csv`) | 아동사망률, 1인당 소득, 기대수명, 합계출산율, 인구, 지역 | 출생 1,000명당 / $/day (2017 PPP) / 년 / 여성 1인당 출생 수 / 명 | https://www.gapminder.org/data |
-| World Bank 국가 목록 API | 소득그룹, 집계 행 식별 | 범주 | https://api.worldbank.org/v2/country |
-| World Bank WDI | Current health expenditure (SH.XPD.CHEX.GD.ZS) | GDP 대비 % | https://data.worldbank.org/indicator/SH.XPD.CHEX.GD.ZS |
+| Gapminder (class file `gapminder_2000_2020.csv`) | child mortality, income, life expectancy, fertility rate, population, region | deaths per 1,000 births / $ per day (2017 PPP) / years / births per woman / people | https://www.gapminder.org/data |
+| World Bank country list | income group, and which rows are groups (not countries) | category | https://api.worldbank.org/v2/country |
+| World Bank WDI | Current health expenditure (SH.XPD.CHEX.GD.ZS) | % of GDP | https://data.worldbank.org/indicator/SH.XPD.CHEX.GD.ZS |
 | WHO GHO | DTP3 immunization coverage among 1-year-olds (WHS4_100) | % | https://ghoapi.azureedge.net/api/WHS4_100 |
 
-- **단위**: 1행 = 국가 × 관측연도, 975행
-- **범위**: 195개국, 6개 지역(Gapminder 분류), 관측연도 2000·2005·2010·2015·2020. 5년 간격이며 연간 자료가 아니다. World Bank와 WHO의 연간 자료는 이 5개 연도만 남긴다.
-- **소득 단위**: `income_per_capita`는 1인당 하루 평균 소득($/day, 2017 PPP)이다. 열에 단위 설명이 없어 국가별 값으로 확인했다. 2020년 값은 미국 96.5, 한국 61.3, 인도 6.0, 모나코 513이다. 365를 곱하면 모나코가 연 약 19만 달러로 타당하다. "천 달러/년"으로 읽으면 모나코가 51만 달러가 되어 불가능하다.
+- **One row** = one country in one year. There are 975 rows.
+- **Coverage:** 195 countries, 6 regions (Gapminder's regions), and 5 observation years: 2000, 2005, 2010, 2015, 2020. These are not yearly data; they are 5 snapshots. The World Bank and WHO have yearly data, so I kept only these 5 years.
+- **Income unit:** The income column had no unit written on it, so I checked it with real countries. In 2020 the values are USA 96.5, South Korea 61.3, India 6.0 and Monaco 513. If this is "dollars per day", Monaco is about $190,000 per year, which makes sense. If it were "thousand dollars per year", Monaco would be $513,000, which is impossible. So the unit is **dollars per person per day (2017 PPP)**.
 
-Week 1 노트북에 "제공 파일의 지표 출처는 실질적인 통계 분석에 쓰기 전에 확인해야 한다"는 안내가 있다. 그래서 분석은 **기술적(descriptive) 비교**로 한정한다.
+The Week 1 notebook says the source of the class file should be checked before serious statistical use. So I only describe and compare; I do not test causes.
 
-### 수집·전처리·결합 (`prep.py` → `data/clean.csv`, 로그 `data/prep_log.txt`)
+### Collecting, cleaning and joining (`prep.py` → `data/clean.csv`, log in `data/prep_log.txt`)
 
-1. **수집**: World Bank와 WHO는 공식 API로 받는다. 응답 원본을 `data/raw/`에 저장하고 다시 실행할 때는 저장본을 재사용하므로 결과를 재현할 수 있다.
-2. **키 통일**: Gapminder 국가코드는 소문자(`afg`)라서 대문자 ISO3로 바꾼 뒤 (ISO3, 연도)로 조인한다. 국가명은 출처마다 표기가 달라서("Congo, Dem. Rep." 등) 조인 키로 쓰지 않는다.
-3. **집계 행 제거**: World Bank 국가 목록 296개 중 "World", "Sub-Saharan Africa", "High income" 같은 **집계 행 79개를 제거**했다. 같은 기준을 보건지출 자료에도 적용했다. WHO는 `SpatialDimType == COUNTRY`만 남겨 지역·전 세계·소득그룹 행 286개를 제외했다. 집계 행이 남으면 국가 중앙값이 왜곡된다.
-4. **조인 검증** (모두 assert, 실패하면 빌드 중단)
-   - 출처마다 (ISO3, 연도)가 유일하다
-   - pandas `merge(validate='many_to_one' / 'one_to_one')`로 조인 관계를 확인한다
-   - 조인 후 행 수가 Gapminder 원본과 같다 (975행). 행이 늘거나 줄지 않는다
-   - 값 범위를 확인한다: DTP3와 보건지출은 0–100%
-   - Gapminder의 다른 점검 항목: 관측연도 5개, 국가마다 지역 1개
-5. **매칭 결과** (로그에 기록)
-   - World Bank 목록에 없는 국가: Holy See
-   - 보건지출이 없는 국가: Holy See, North Korea
-   - DTP3가 없는 국가: Holy See, Liechtenstein
-6. **결측값**: 보간하지 않는다. 각 차트는 자신이 그릴 수 없는 행만 제외한다. 조인 후 결측률은 소득 1.0%, 아동사망률 0.8%, 기대수명 0.5%, 출산율 0.0%, 보건지출 3.3%, DTP3 1.6%, 소득그룹 0.5%다.
-7. **필터 순서**: 필터를 먼저 적용하고 집계한다. Part A의 지표·연도·지역 선택은 중앙값 계산 전에 적용된다 (Altair 1 "Filter order changes the question").
+1. **Collecting:** I downloaded the World Bank and WHO data from their official APIs. The raw answers are saved in `data/raw/`. When the code runs again, it uses these saved files, so the result is always the same.
+2. **Matching countries:** Each source writes country codes differently. Gapminder uses small letters (`afg`), so I changed them to capital ISO3 codes (`AFG`) and joined the tables on (country code, year). I did not join on country names, because the names are spelled differently in each source (for example "Congo, Dem. Rep.").
+3. **Removing groups:** The World Bank list has 296 rows, but 79 of them are groups such as "World", "Sub-Saharan Africa" or "High income", not countries. I removed them, and did the same for the health spending data. In the WHO data I kept only rows marked `COUNTRY`, which removed 286 region, world and income-group rows. If these groups stayed in, the country medians would be wrong.
+4. **Checking the join** (every check is an `assert`, so the code stops if one fails):
+   - each source has only one row per (country, year)
+   - pandas `merge(validate=...)` checks that the join matches rows one-to-one
+   - after joining there are still exactly 975 rows, the same as the Gapminder file
+   - DTP3 and health spending are between 0 and 100 %
+   - Gapminder has exactly 5 years, and each country belongs to only one region
+5. **Countries with no match** (written in the log):
+   - not in the World Bank list: Holy See
+   - no health spending data: Holy See, North Korea
+   - no DTP3 data: Holy See, Liechtenstein
+6. **Missing values:** I did not fill in missing values with guesses. Each chart only leaves out the rows it cannot draw. Missing shares after the join: income 1.0%, child mortality 0.8%, life expectancy 0.5%, fertility 0.0%, health spending 3.3%, DTP3 1.6%, income group 0.5%.
+7. **Filter first, then summarize:** In Part A, the indicator, year and region choices are applied before the medians are calculated (Altair Week 1: "Filter order changes the question").
 
-**결합으로 가능해진 분석**: Gapminder만으로는 "소득이 비슷한데 아동사망률이 다른 나라"까지만 찾을 수 있다. WHO 접종률과 World Bank 보건지출을 붙이면 대시보드에서 지표를 바꿔, 그 나라들이 접종률이나 보건지출에서도 다른지 바로 확인할 수 있다. World Bank 소득그룹은 tooltip에서 Gapminder 소득을 해석하는 기준이 된다. Part B에서는 결합한 WHO 접종률과 Gapminder 소득으로 격차의 맥락을 제시한다 (3절 "맥락").
+**What the joined data adds:** With Gapminder alone, I can only find countries that have different child mortality at the same income. With WHO vaccine coverage and World Bank health spending added, the user can switch the indicator and see whether those same countries are also different in vaccines or health spending. The World Bank income group in the tooltip helps the user read Gapminder income. In Part B, WHO vaccine coverage and Gapminder income give context to the main message (see Section 3, "Context").
 
-**어려웠던 점**: 출처마다 국가 식별자 형식이 다르다(소문자 코드, ISO3). World Bank API는 국가와 집계를 한 목록으로 준다. 소득 열에는 단위 설명이 없어서 국가별 값으로 단위를 역추적해야 했다.
+**What was hard:** The sources write country codes in different ways. The World Bank API mixes countries and groups in one list. The income column had no unit, so I had to work out the unit from real country values.
 
 ---
 
-## 2. Part A: 탐색형 대시보드
+## 2. Part A: Exploratory Dashboard
 
-### 목적
-- **사용자**: 국제보건과 개발협력을 공부하는 학생과 실무자
-- **범위**: 195개국, 2000–2020, 6개 지역, 지표 5개 (아동사망률, 기대수명, 합계출산율, DTP3 접종률, 보건지출)
-- **탐색 질문 예시**
-  1. 2000년에 아동사망률이 가장 높았던 지역은 어디이고, 2020년에는 순위가 바뀌었나? (연도 변경 + 차트 2)
-  2. 같은 소득 수준에서 아동사망률이 유난히 높거나 낮은 국가는? 그 나라는 DTP3 접종률도 다른가? (차트 1 + tooltip → 지표를 DTP3로 변경)
-  3. 소득이 비슷한 나라끼리 출산율이나 보건지출 비중은 얼마나 다른가? (지표 변경 + 차트 1 세로 퍼짐)
-  4. 특정 국가의 접종률이나 기대수명은 20년 동안 어떻게 변했고, 전체 중앙값과 비교하면 어떤가? (차트 1 클릭 → 차트 3)
+### Purpose
+- **Users:** students and workers who study global health and development
+- **Scope:** 195 countries, 2000–2020, 6 regions, 5 indicators (child mortality, life expectancy, fertility rate, DTP3 vaccine coverage, health spending)
+- **Example questions users can explore**
+  1. Which region had the highest child mortality in 2000, and did the order change by 2020? (change the year, look at chart 2)
+  2. Which countries have much higher or lower child mortality than others at the same income? Is their DTP3 coverage also different? (chart 1 and tooltip, then switch the indicator to DTP3)
+  3. At a similar income, how different are fertility rates or health spending between countries? (switch the indicator, look at how spread out chart 1 is from top to bottom)
+  4. How did one country's vaccine coverage or life expectancy change over 20 years, compared with the median of all countries? (click a country in chart 1, look at chart 3)
 
-### 구성과 사용법
-| 뷰 | 인코딩 | 상호작용 | 답하는 질문 |
+### Views and how to use them
+| View | Encoding | Interaction | Questions |
 |---|---|---|---|
-| **Indicator / Year 드롭다운 (차트 위)** | — | 지표 5개 전환, 관측연도 5개 전환. ①②③과 상태 텍스트에 함께 적용 | 전체 |
-| ① 소득–지표 산점도 | x = 소득 (log), y = 선택 지표 (선형), 색 = 지역 | 국가 클릭 → ③에 추세 추가 (shift-클릭으로 여러 개), tooltip (World Bank 소득그룹 포함) | Q2, Q3 |
-| ② 지역별 중앙값 막대 | 길이, 중앙값 기준 내림차순 정렬 | 막대 클릭 → ①에서 해당 지역 강조 (나머지는 회색) | Q1 |
-| ③ 선택 국가 추세 | 공통축 위치 (선 + 점), 국가 이름을 선 끝에 직접 표시 | ①의 선택으로 필터링. 점선은 전체 국가 중앙값 | Q4 |
-| 현재 선택 상태 | 텍스트 | 연도, 선택된 지역 수, 데이터가 있는 국가 수, 중앙값을 실시간 표시 | 상태 확인 |
+| **Indicator / Year dropdowns (above the charts)** | — | choose 1 of 5 indicators and 1 of 5 years; this changes charts 1–3 and the status text together | all |
+| ① Income vs. indicator scatter plot | x = income (log scale), y = chosen indicator, color = region | click a country to add its line to chart 3 (shift-click to add more); tooltip with details, including the World Bank income group | Q2, Q3 |
+| ② Median by region bar chart | bar length, sorted from largest to smallest | click a bar to highlight that region in chart 1 (other regions turn gray) | Q1 |
+| ③ Trend of selected countries | position on a shared axis (lines and points), country names written at the end of each line | shows only the countries clicked in chart 1; the dashed line is the median of all countries | Q4 |
+| Current selection | text | shows the year, how many regions are selected, how many countries have data, and the median | to see what is selected now |
 
-- **기본 화면**: 아동사망률, 2020년, 모든 지역. ③에는 대비가 뚜렷한 4개국(Nigeria, India, Brazil, South Korea)이 미리 선택되어 있다 (Altair 2 p.16의 `value` 초기 상태).
-- **초기화**: ①이나 ②를 더블클릭하면 해당 선택이 해제된다 (`clear='dblclick'`). 이 안내는 부제에 적혀 있다.
-- **차트 제목과 y축 제목**: 선택한 지표 이름과 단위가 차트 제목과 y축 제목에 바로 나타난다 (`alt.expr`). Altair의 축 제목은 parameter를 받지 못해서, y축 제목은 회전한 텍스트 마크로 그렸다. 그래서 지금 어떤 값을 어떤 단위로 보고 있는지 항상 알 수 있다.
-- **페이지 안내**: 대시보드 페이지 맨 위에 대상 사용자, 범위, 사용법, 예시 질문을 적었다. 보고서를 읽지 않고 URL만 연 사람도 바로 쓸 수 있다.
+- **Default view:** child mortality, 2020, all regions. Chart 3 already shows 4 very different countries (Nigeria, India, Brazil, South Korea), so the first screen is useful right away (Altair Week 2 p.16, initial `value`).
+- **Reset:** double-click chart 1 or 2 to clear its selection (`clear='dblclick'`). This is written in the chart subtitles.
+- **Titles and y-axis titles:** the chosen indicator and its unit appear in the chart titles and the y-axis titles (`alt.expr`). Altair axis titles cannot read a parameter, so I drew the y-axis title as rotated text. The user always knows what is shown and in which unit.
+- **Instructions on the page:** the top of the dashboard page explains who it is for, what data it covers, how to use it, and example questions. Someone who opens only the URL can use it without reading this report.
 
-### 설계 근거 (수업 개념)
-- **컨트롤 위치**: Altair는 위젯을 차트 아래에 둔다. 위젯이 아래에 있으면 첫 화면에서 보이지 않고, 사용자가 레이아웃을 학습할 것이라 기대할 수 없다 (Postattentive vision). 그래서 CSS(`flex-direction: column-reverse`)로 드롭다운을 차트 위로 옮겼다.
-- **Cleveland & McGill 순위**: 정확한 비교가 필요한 값은 모두 공통축 위치(①③)나 길이(②)로 표현했다. 인구를 버블 크기로 나타내지 않은 이유는 면적 판단의 정확도가 낮기 때문이다(면적 ∝ r²). 인구는 tooltip으로만 보여준다.
-- **척도 선택**: 소득은 하루 1–530달러로 분포가 매우 넓어서 곱셈적 차이를 펼치는 log 축을 썼다 (Altair 1 Gapminder 예시). 지표 축은 하나의 스펙으로 5개 지표를 모두 그려야 한다. 접종률·보건지출(%)이나 출산율처럼 log가 맞지 않는 지표도 있어서 선형(`zero=False`)으로 통일했다. 아동사망률의 저사망 국가 구간은 압축되어 보이므로 tooltip으로 보완한다.
-- **Highlight와 Filter의 구분** (Altair 2 p.19–20): 지역 선택은 ①에서 **강조**로 처리해 맥락을 유지하고, 상태 텍스트에서는 **필터**로 처리해 수치를 계산한다. 국가 선택은 ③에서 필터로 작동한다.
-- **Pre-attentive pop-out과 similarity theory**: 선택되지 않은 마크는 균일한 회색으로 바꾼다(N–N 유사성↑). 선택된 국가는 검은 테두리로 표시해 배경과 대비시킨다(T–N 유사성↓).
-- **Feature hierarchy**: 1차 변수인 지역은 색(hue)으로, 국가 선택 여부라는 2차 정보는 테두리로 표현해 서로 간섭하지 않게 했다.
-- **Change blindness**: 지표나 필터가 바뀌어도 사용자가 알아채지 못할 수 있다. 그래서 차트 제목과 "Current selection" 텍스트로 현재 상태를 명시적으로 보여준다 (Altair 2 Dashboard 4 패턴).
-- **기준선의 의미** (Altair 2 p.34): ③의 점선은 선택한 지표의 전체 국가 중앙값이므로 국가 선택에 반응하지 않는다. 부제에도 그렇게 밝혔다.
-- **일관성과 색 충돌 방지**: 지역 색은 ①과 ②에서 같은 매핑을 쓴다. ③의 국가 선은 색 대신 검은 선과 직접 라벨로 구분한다. 국가에 색을 주면 지역 색과 겹쳐(예: India 주황 = South Asia 주황) 잘못 읽힐 수 있기 때문이다. 범례를 오갈 필요도 없어진다.
+### Design reasons (course concepts)
+- **Controls on top:** Altair puts the dropdowns below the charts, where users may not see them. People do not memorize a new layout (postattentive vision), so the controls must be easy to see right away. I used CSS (`flex-direction: column-reverse`) to move them above the charts.
+- **Cleveland & McGill ranking:** People read position on a shared scale and length most accurately. So every value that needs exact comparison uses position (charts 1 and 3) or length (chart 2). I did not show population as bubble size, because people judge area poorly (area grows with the square of the radius). Population is in the tooltip instead.
+- **Scales:** Income goes from about $1 to $530 per day, so I used a log scale, which spreads out "times bigger" differences evenly (Altair Week 1 Gapminder example). The y-axis must work for all 5 indicators. Some of them (percentages, fertility) do not suit a log scale, so the y-axis is linear (`zero=False`). Low child mortality values look squeezed together, so the tooltip gives the exact numbers.
+- **Highlight vs. filter** (Altair Week 2 p.19–20): Choosing a region **highlights** it in chart 1, so the other countries stay as gray context. The status text **filters** to the selected region to calculate its numbers. Choosing a country **filters** chart 3.
+- **Pre-attentive pop-out and similarity theory:** Unselected marks all become the same light gray (background items look alike). Selected countries get a black outline, so they look very different from the background and pop out.
+- **Feature hierarchy:** Color is the strongest channel, so it shows the main variable, region. The less important information, whether a country is selected, uses an outline, so the two do not get in each other's way.
+- **Change blindness:** Users may not notice that something changed. So the chart titles and the "Current selection" text say clearly what is shown now (Altair Week 2 dashboard pattern).
+- **Meaning of the reference line** (Altair Week 2 p.34): The dashed line in chart 3 is the median of all countries for the chosen indicator. It does not move when you click countries. The subtitle says this.
+- **Consistent colors, no color clash:** Region colors are the same in charts 1 and 2. In chart 3 the country lines are black with names written next to them, not colored. If countries had colors, they could look like region colors (for example India orange = South Asia orange). This also removes the need to look back and forth at a legend.
 
 ---
 
-## 3. Part B: 설명형 시각화
+## 3. Part B: Explanatory Visualization
 
 ### Key message
-> **2000–2020년 사하라 이남 아프리카의 아동사망률은 크게 줄어 유럽·중앙아시아와의 절대 격차는 절반 이하가 되었지만, 상대 격차는 여전히 11–14배로 줄지 않았다.**
+> **From 2000 to 2020, child mortality in Sub-Saharan Africa fell so much that its absolute gap with Europe & Central Asia shrank by more than half. But the relative gap did not shrink: it is still 11–14 times higher.**
 
-- **독자**: 개발협력과 보건정책에 관심 있는 일반 독자
-- **왜 중요한가**: "격차가 줄었다"는 흔한 서술이 절대값으로 보면 맞고 비율로 보면 틀린다. 격차를 어떤 척도로 재느냐에 따라 정책 평가가 달라진다는 점을 보여준다.
+- **Audience:** general readers interested in development and health policy
+- **Why it matters:** People often say "the gap got smaller". That is true if you subtract (absolute gap) but not if you divide (relative gap). How you measure a gap changes how you judge progress.
 
-### 차트와 읽는 순서
-| 순서 | 차트 | 증거 |
+### Charts and reading order
+| Order | Chart | Evidence |
 |---|---|---|
-| ① | 지역별 중앙값 추세 (선형축, 0 기준) | 모든 지역에서 감소했다. 감소폭이 가장 큰 곳은 사하라 이남 아프리카다 (139 → 59, −80) |
-| ② | 절대 격차 막대 (SSA − 유럽) | 129 → 55로 절반 이하 |
-| ③ | 상대 격차 선 (SSA ÷ 유럽) | 국가 중앙값 기준 14.6 → 14.4배로 거의 변화 없음. 인구 가중 기준 9.1 → 11.5배로 오히려 증가. "1× = 격차 없음" 기준선 표시 |
+| ① | Median child mortality by region over time (linear axis starting at 0) | It fell in every region. The biggest drop was in Sub-Saharan Africa (139 → 59 per 1,000, −80). |
+| ② | Absolute gap bars (Sub-Saharan Africa minus Europe) | 129 → 55, less than half |
+| ③ | Relative gap lines (Sub-Saharan Africa divided by Europe) | Country median: 14.6 → 14.4 times, almost no change. Population-weighted: 9.1 → 11.5 times, it even grew. A reference line marks "1× = no gap". |
 
-**왜 이런 결과가 나왔나**: 2000–2020년 감소율은 사하라 이남 아프리카 58%, 유럽·중앙아시아 57%로 거의 같다. 같은 비율로 줄면 출발점이 높은 쪽의 절대값이 훨씬 많이 줄기 때문에, 절대 격차는 줄고 배수는 유지된다.
+**Why this happens:** From 2000 to 2020 child mortality fell by 58% in Sub-Saharan Africa and by 57% in Europe & Central Asia, almost the same rate. When two numbers fall by the same percentage, the bigger number loses many more deaths, so the absolute gap shrinks while the ratio stays the same.
 
-### 설계 근거
-- **주장형 제목**: 전체 제목과 각 차트 제목이 모두 결론 문장이다 (Altair 2 p.47 "Evening flights have the highest…" 패턴).
-- **강조 색 하나 + 회색 배경**: 비교 대상 두 지역만 색(빨강·청록)으로 칠하고 나머지 4개 지역은 회색이다. 다른 지역도 모두 보여주므로 cherry-picking이 아니며, 맥락은 유지하면서 pop-out을 만든다.
-- **범례 대신 직접 라벨**: 선의 끝과 핵심 수치에 바로 라벨을 붙여 범례를 오가는 인지 부담을 없앴다.
-- **곡률 함정 회피** (Graphical Perception): 독자가 ①의 두 선 사이 간격을 눈으로 계산하지 않도록, 격차를 따로 계산해 ②와 ③에 직접 그렸다.
-- **정직한 축**: 막대(②)와 비율(③)은 0에서 시작한다. ③에서 0–18 범위를 쓰면 "거의 평평함"이 과장 없이 보인다.
-- **Feature hierarchy**: ③에서 1차 지표(국가 중앙값)는 빨간 실선, 보조 지표(인구 가중)는 회색 점선으로 그렸다.
-- **고정된 화면**: Part B에는 interaction이 없다. 메시지와 근거가 고정된 화면에서 모두 보인다.
-- **chartjunk 제거**: 격자선과 테두리를 없앴다 (`configure_view(stroke=None)`, `grid=False`).
-- **코드 자체 검증**: `viz.py`의 assert문이 제목의 주장(절대 격차 < 절반, 비율 유지·증가)을 데이터로 확인한다. 데이터가 바뀌어 주장이 깨지면 빌드가 실패한다.
+### Design reasons
+- **Titles that state the finding:** The main title and every chart title is a sentence that says the result (Altair Week 2 p.47, "Evening flights have the highest…" pattern).
+- **One accent color, gray for the rest:** Only the two regions being compared have colors (red and teal). The other four regions are gray but still shown, so nothing is hidden (no cherry-picking), and the two main lines pop out.
+- **Direct labels instead of a legend:** Names and key numbers are written right next to the lines, so readers do not have to look back and forth at a legend.
+- **Avoiding the curvature trap** (Graphical Perception): Readers are bad at judging the distance between two lines by eye. So I calculated the gap and drew it directly in charts ② and ③.
+- **Honest axes:** The bars (②) and the ratio (③) start at 0. With the ratio axis from 0 to 18, "almost flat" really looks flat, with no exaggeration.
+- **Feature hierarchy:** In ③, the main measure (country median) is a solid red line, and the second measure (population-weighted) is a gray dashed line.
+- **Fixed view:** Part B has no interaction. The message and all the evidence are visible without clicking anything.
+- **No chartjunk:** I removed grid lines and borders (`configure_view(stroke=None)`, `grid=False`).
+- **The code checks the claim:** `assert` lines in `viz.py` check the title's claims with the data (the absolute gap is less than half; the ratio did not shrink). If the data changed and the claim became false, the build would stop.
 
-### 맥락 (결합 데이터)
-제목 바로 아래 부제에 두 가지 맥락을 적었다 (지역별 국가 중앙값, 2000 → 2020).
-- **DTP3 접종률 격차 (WHO)**: 유럽·중앙아시아와 사하라 이남 아프리카의 차이가 32%p에서 11%p로 좁혀졌다 (96 vs 64% → 94 vs 83%).
-- **소득 격차 (Gapminder)**: 유럽의 소득 우위는 6.6배에서 9.6배로 오히려 커졌다.
+### Context (from the joined data)
+Two lines under the main title give context (region medians, 2000 → 2020):
+- **Vaccine gap (WHO DTP3):** The difference between Europe & Central Asia and Sub-Saharan Africa narrowed from 32 to 11 percentage points (96% vs 64% → 94% vs 83%).
+- **Income gap (Gapminder):** Europe's income lead grew from 6.6 times to 9.6 times.
 
-두 변화가 같은 기간에 함께 일어났다는 사실만 적었고, 어느 쪽이 상대 격차를 유지시키는지는 주장하지 않았다. 독자에게 "기초 접종 격차는 좁혀졌는데 상대 사망 격차는 그대로"라는 다음 질문을 남긴다. 수치는 `viz.py`가 같은 데이터에서 계산해 부제에 넣으므로 보고서 수치와 차트 수치가 일치한다.
+I only say that these changes happened at the same time. I do not claim which one keeps the relative gap large. This leaves the reader with a fair next question: "The basic vaccine gap closed, so why is the relative death gap still the same?" The numbers are calculated by `viz.py` from the same data, so the report and the chart always match.
 
-### 한계
-- **요약 방식**: 지역 대표값으로 국가 중앙값을 썼다. 지역 내 국가 간 편차가 크고(Part A에서 확인 가능), 인구 가중 여부에 따라 비율이 9–14배로 달라진다. 그래서 두 방식을 모두 표시했다.
-- **표본 크기**: 지역마다 국가 수가 다르다 (South Asia 8개국 ~ Europe & Central Asia 54개국).
-- **관측 시점**: 5개 관측연도뿐이며, 점 사이의 선은 보간이다.
-- **인과 해석 불가**: 이 비교는 감소의 원인(소득, 보건 지출, 예방접종 등)을 보여주지 않는다.
-- **출처 확인**: 제공 파일의 지표 출처와 버전을 원 출처와 대조하지 않았다.
+### Limitations
+- **Type of summary:** Each region is represented by the median country. Countries inside a region are very different (you can see this in Part A), and the ratio is 9–14 times depending on whether you weight by population. That is why both are shown.
+- **Number of countries:** Regions have different numbers of countries (from 8 in South Asia to 54 in Europe & Central Asia).
+- **Only 5 years:** The data has only 5 observation years; the lines between the points are drawn in, not measured.
+- **No causes:** This comparison does not show why child mortality fell (income, health spending, vaccines, or something else).
+- **Source check:** I did not compare the class file's values and versions with Gapminder's original data.
 
 ---
 
-## 4. 가산점 신청
+## 4. Bonus Work
 
-| 항목 | 상태 |
+| Item | Status |
 |---|---|
-| Part A 온라인 게시 | GitHub Pages 게시 후 URL 추가 예정 |
-| Part B 온라인 게시 | GitHub Pages 게시 후 URL 추가 예정 |
-| 데이터 수집·결합 | **신청**: 3개 기관(Gapminder, World Bank, WHO), 4개 데이터셋을 ISO3·연도로 조인하고 검증 (1절). 결합 데이터는 Part A의 지표 5개와 Part B 맥락에 쓰인다 |
+| Part A online | **Submitted:** https://hischan12.github.io/DataVisualization_midterm/site/dashboard.html |
+| Part B online | **Submitted:** https://hischan12.github.io/DataVisualization_midterm/site/story.html |
+| Data collection and integration | **Submitted:** 4 datasets from 3 organizations (Gapminder, World Bank, WHO), joined on country code and year and checked (Section 1). The joined data is used for the 5 indicators in Part A and the context in Part B. |
